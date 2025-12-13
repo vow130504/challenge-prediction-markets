@@ -39,6 +39,20 @@ contract PredictionMarket is Ownable {
 
     /// Checkpoint 2 ///
 
+    // Các biến immutable (bất biến) để tiết kiệm gas, vì những giá trị này không đổi sau khi deploy
+    address public immutable i_oracle;
+    uint256 public immutable i_initialTokenValue;
+    uint256 public immutable i_percentageLocked;
+    uint256 public immutable i_initialYesProbability;
+
+    // Các biến state (trạng thái) có thể thay đổi
+    string public s_question;
+    uint256 public s_ethCollateral; // Tổng lượng ETH đang đảm bảo cho các token
+    uint256 public s_lpTradingRevenue; // Doanh thu phí giao dịch của LP
+    
+    
+    
+    
     /// Checkpoint 3 ///
 
     /// Checkpoint 5 ///
@@ -78,7 +92,33 @@ contract PredictionMarket is Ownable {
         uint8 _percentageToLock
     ) payable Ownable(_liquidityProvider) {
         /// Checkpoint 2 ////
-        /// Checkpoint 3 ////
+        
+        // 1. Kiểm tra tiền nạp ban đầu: Không được tạo thị trường rỗng (0 ETH)
+        if (msg.value == 0) {
+            revert PredictionMarket__MustProvideETHForInitialLiquidity();
+        }
+
+        // 2. Kiểm tra xác suất: Phải nằm trong khoảng 0 < x < 100
+        if (_initialYesProbability >= 100 || _initialYesProbability == 0) {
+            revert PredictionMarket__InvalidProbability();
+        }
+
+        // 3. Kiểm tra phần trăm khóa: Phải nằm trong khoảng 0 < x < 100
+        if (_percentageToLock >= 100 || _percentageToLock == 0) {
+            revert PredictionMarket__InvalidPercentageToLock();
+        }
+
+        // 4. Gán giá trị cho các biến State
+        i_oracle = _oracle;
+        s_question = _question;
+        i_initialTokenValue = _initialTokenValue;
+        i_initialYesProbability = _initialYesProbability;
+        i_percentageLocked = _percentageToLock;
+
+        // 5. Ghi nhận số ETH đã nạp vào làm tài sản đảm bảo
+        s_ethCollateral = msg.value;
+
+        /// Checkpoint 3 (sẽ làm sau) ////
     }
 
     /////////////////
