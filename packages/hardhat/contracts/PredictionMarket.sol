@@ -90,6 +90,7 @@ contract PredictionMarket is Ownable {
      * @dev Only the owner can add liquidity and only if the prediction is not reported
      */
     function addLiquidity() external payable onlyOwner {
+        //// Dành cho LP ////
         //// Checkpoint 4 ////
     }
 
@@ -126,6 +127,7 @@ contract PredictionMarket is Ownable {
      * @param _amountTokenToBuy Amount of tokens to purchase
      */
     function buyTokensWithETH(Outcome _outcome, uint256 _amountTokenToBuy) external payable {
+        /// Dành cho User ////
         /// Checkpoint 8 ////
     }
 
@@ -135,6 +137,7 @@ contract PredictionMarket is Ownable {
      * @param _tradingAmount The amount of tokens to sell
      */
     function sellTokensForEth(Outcome _outcome, uint256 _tradingAmount) external {
+        /// Dành cho User ////
         /// Checkpoint 8 ////
     }
 
