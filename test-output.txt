@@ -1,0 +1,144 @@
+﻿
+
+  📈📉🏎️ Prediction Markets Challenge
+    Checkpoint2
+      ✔ Should revert when no ETH is provided for initial liquidity (100ms)
+      ✔ Should revert when initialYesProbability is 0 or >= 100 (59ms)
+      ✔ Should revert when percentageToLock is >= 100 or 0 (67ms)
+      ✔ Should set the correct state variables on deployment (115ms)
+    Checkpoint3
+      ✔ Should correctly calculate initial token amounts (133ms)
+      ✔ Should correctly transfer locked tokens to deployer (67ms)
+    Checkpoint4
+      ✔ Should successfully add liquidity, mint tokens and update state variables (101ms)
+      ✔ Should revert when trying to remove more tokens than available (41ms)
+      ✔ Should successfully remove liquidity, burn tokens and update state variables (82ms)
+      ✔ Should emit correct events when adding and removing liquidity (75ms)
+    Checkpoint5
+      ✔ Should revert when trying to add liquidity after prediction is reported
+      ✔ Should revert when trying to remove liquidity after prediction is reported (47ms)
+      ✔ Should revert when trying to report after prediction is reported (39ms)
+      ✔ Should revert when trying to report when not called by the s_oracle
+      ✔ Should correctly set winning token and isReported flag when reporting (122ms)
+      ✔ Should emit correct MarketReported event when reporting (239ms)
+    Checkpoint6
+      ✔ Should revert when trying to resolve before prediction is reported (47ms)
+      ✔ Should correctly resolve market and withdraw ETH (79ms)
+      ✔ Should send exact totalEthToSend amount to msg.sender (69ms)
+    Checkpoint7
+      ✔ Should correctly calculate buy price in ETH (77ms)
+      ✔ Should correctly calculate sell price in ETH (74ms)
+      ✔ Should revert when trying to buy more tokens than available in reserve (78ms)
+      ✔ Should correctly calculate probability for different token amounts (79ms)
+      ✔ Should correctly get current reserves for both YES and NO outcomes (74ms)
+      ✔ Should correctly calculate probability with edge cases (38ms)
+    Checkpoint8
+      ✔ Should revert when trying to buy tokens with zero amount (118ms)
+      ✔ Should revert when trying to sell tokens with zero amount (120ms)
+      ✔ Should revert when trying to buy tokens with incorrect ETH amount (60ms)
+      ✔ Should successfully buy tokens with ETH (68ms)
+      ✔ Should successfully sell tokens for ETH (74ms)
+      ✔ Should revert when trying to sell more tokens than owned (55ms)
+      ✔ Should revert when trying to sell tokens without approval (65ms)
+      ✔ Should emit correct events when buying and selling tokens (83ms)
+      ✔ Should revert when trying to buy tokens after prediction is reported (62ms)
+      ✔ Should revert when trying to sell tokens after prediction is reported (69ms)
+      ✔ Owner cannot buy or sell tokens (67ms)
+    Checkpoint9
+      1) Should revert when trying to redeem before prediction is reported
+      2) Should revert when trying to redeem more tokens than owned
+      3) Should revert when trying to redeem zero tokens
+      4) Should successfully redeem winning tokens and receive ETH
+      5) Should emit correct WinningTokensRedeemed event
+      6) Owner cannot redeem tokens
+
+
+  36 passing (4s)
+  6 failing
+
+  1) 📈📉🏎️ Prediction Markets Challenge
+       Checkpoint9
+         Should revert when trying to redeem before prediction is reported:
+     AssertionError: Expected transaction to be reverted with custom error 'PredictionMarket__PredictionNotReported', but it didn't revert
+      at async Context.<anonymous> (test\PredictionMarket.ts:1335:7)
+
+  2) 📈📉🏎️ Prediction Markets Challenge
+       Checkpoint9
+         Should revert when trying to redeem more tokens than owned:
+     AssertionError: Expected transaction to be reverted with custom error 'PredictionMarket__InsufficientWinningTokens', but it didn't revert
+      at async Context.<anonymous> (test\PredictionMarket.ts:1358:7)
+
+  3) 📈📉🏎️ Prediction Markets Challenge
+       Checkpoint9
+         Should revert when trying to redeem zero tokens:
+     AssertionError: Expected transaction to be reverted with custom error 'PredictionMarket__AmountMustBeGreaterThanZero', but it didn't revert
+      at async Context.<anonymous> (test\PredictionMarket.ts:1381:7)
+
+  4) 📈📉🏎️ Prediction Markets Challenge
+       Checkpoint9
+         Should successfully redeem winning tokens and receive ETH:
+
+      AssertionError: expected 800000000000000000 to equal 0.
+      + expected - actual
+
+      -800000000000000000
+      +0
+      
+      at Context.<anonymous> (test\PredictionMarket.ts:1437:38)
+
+  5) 📈📉🏎️ Prediction Markets Challenge
+       Checkpoint9
+         Should emit correct WinningTokensRedeemed event:
+     AssertionError: Expected event "WinningTokensRedeemed" to be emitted, but it wasn't
+      at C:\Users\LENOVO\challenge-prediction-markets\packages\hardhat\node_modules\@nomicfoundation\hardhat-chai-matchers\src\internal\emit.ts:130:20
+      at async Context.<anonymous> (test\PredictionMarket.ts:1472:7)
+
+  6) 📈📉🏎️ Prediction Markets Challenge
+       Checkpoint9
+         Owner cannot redeem tokens:
+     AssertionError: Expected transaction to be reverted with custom error 'PredictionMarket__OwnerCannotCall', but it didn't revert
+      at async Context.<anonymous> (test\PredictionMarket.ts:1495:7)
+
+
+
+······················································································································
+|  [32m[1mSolidity and Network Configuration[22m[39m                                                                                │
+·································|·················|···············|·················|································
+|  [36mSolidity: 0.8.20[39m              ·  [36mOptim: true[39m    ·  [36mRuns: 200[39m    ·  [36mviaIR: true[39m    ·     [36mBlock: 30,000,000 gas[39m     │
+·································|·················|···············|·················|································
+|  [32m[1mMethods[22m[39m                                                                                                           │
+·································|·················|···············|·················|················|···············
+|  [32m[1mContracts / Methods[22m[39m           ·  [1mMin[22m            ·  [1mMax[22m          ·  [1mAvg[22m            ·  [1m# calls[22m       ·  [1musd (avg)[22m   │
+·································|·················|···············|·················|················|···············
+|  [1mPredictionMarket[22m              ·                                                                                   │
+·································|·················|···············|·················|················|···············
+|      addLiquidity              ·              [90m-[39m  ·            [90m-[39m  ·         67,643  ·             6  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|      buyTokensWithETH          ·              [90m-[39m  ·            [90m-[39m  ·         96,310  ·             9  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|      redeemWinningTokens       ·         [36m21,432[39m  ·       [31m21,504[39m  ·         21,495  ·             8  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|      removeLiquidity           ·              [90m-[39m  ·            [90m-[39m  ·         76,924  ·             3  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|      report                    ·         [36m45,638[39m  ·       [31m45,662[39m  ·         45,642  ·            18  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|      resolveMarketAndWithdraw  ·              [90m-[39m  ·            [90m-[39m  ·         55,197  ·             4  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|      sellTokensForEth          ·              [90m-[39m  ·            [90m-[39m  ·         61,294  ·             4  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|  [1mPredictionMarketToken[22m         ·                                                                                   │
+·································|·················|···············|·················|················|···············
+|      approve                   ·              [90m-[39m  ·            [90m-[39m  ·         45,981  ·             4  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|  [32m[1mDeployments[22m[39m                                     ·                                 ·  [1m% of limit[22m    ·              │
+·································|·················|···············|·················|················|···············
+|  [1mPredictionMarket[22m              ·      [36m3,077,925[39m  ·    [31m3,100,389[39m  ·      3,079,570  ·        10.3 %  ·           [32m[90m-[39m[32m[39m  │
+·································|·················|···············|·················|················|···············
+|  [32m[1mKey[22m[39m                                                                                                               │
+······················································································································
+|  [35m[1m◯[22m[39m  Execution gas for this method does not include intrinsic gas overhead                                          │
+······················································································································
+|  [35m[1m△[22m[39m  Cost was non-zero but below the precision setting for the currency display (see options)                       │
+······················································································································
+|  [35mToolchain:[39m  hardhat                                                                                               │
+······················································································································
