@@ -295,7 +295,7 @@ contract PredictionMarket is Ownable {
      * @param _amountTokenToBuy Amount of tokens to purchase
      */
     function buyTokensWithETH(Outcome _outcome, uint256 _amountTokenToBuy) external payable {
-        /// Dành cho User ////
+        /// DÇÿnh cho User ////
         /// Checkpoint 8 ////
     }
 
@@ -305,7 +305,7 @@ contract PredictionMarket is Ownable {
      * @param _tradingAmount The amount of tokens to sell
      */
     function sellTokensForEth(Outcome _outcome, uint256 _tradingAmount) external {
-        /// Dành cho User ////
+        /// DÇÿnh cho User ////
         /// Checkpoint 8 ////
     }
 
@@ -316,6 +316,32 @@ contract PredictionMarket is Ownable {
      */
     function redeemWinningTokens(uint256 _amount) external {
         /// Checkpoint 9 ////
+        if (msg.sender == owner()) {
+            revert PredictionMarket__OwnerCannotCall();
+        }
+        if (!s_isReported) {
+            revert PredictionMarket__PredictionNotReported();
+        }
+        if (_amount == 0) {
+            revert PredictionMarket__AmountMustBeGreaterThanZero();
+        }
+
+        uint256 balance = s_winningToken.balanceOf(msg.sender);
+        if (balance < _amount) {
+            revert PredictionMarket__InsufficientWinningTokens();
+        }
+
+        s_winningToken.burn(msg.sender, _amount);
+
+        uint256 ethAmount = (_amount * i_initialTokenValue) / PRECISION;
+        s_ethCollateral -= ethAmount;
+
+        (bool ok, ) = msg.sender.call{value: ethAmount}("");
+        if (!ok) {
+            revert PredictionMarket__ETHTransferFailed();
+        }
+
+        emit WinningTokensRedeemed(msg.sender, _amount, ethAmount);
     }
 
     /**
@@ -374,7 +400,6 @@ contract PredictionMarket is Ownable {
     function _calculateProbability(uint256 tokensSold, uint256 totalSold) private pure returns (uint256) {
         /// Checkpoint 7 ////
     }
-
     /////////////////////////
     /// Getter Functions ///
     ////////////////////////
