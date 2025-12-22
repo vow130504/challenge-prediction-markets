@@ -49,18 +49,17 @@ contract PredictionMarket is Ownable {
     string public s_question;
     uint256 public s_ethCollateral; // Tổng lượng ETH đang đảm bảo cho các token
     uint256 public s_lpTradingRevenue; // Doanh thu phí giao dịch của LP
-    
 
-
-
-    PredictionMarketToken public immutable i_yesToken;
-    PredictionMarketToken public immutable i_noToken;
-    
-    
+    mapping(address => uint256) public s_yesBalances;
+    mapping(address => uint256) public s_noBalances;
     
     /// Checkpoint 3 ///
+    PredictionMarketToken public immutable i_yesToken;
+    PredictionMarketToken public immutable i_noToken;
 
     /// Checkpoint 5 ///
+    PredictionMarketToken public s_winningToken;
+    bool public s_isReported;
 
     /////////////////////////
     /// Events //////
@@ -79,9 +78,20 @@ contract PredictionMarket is Ownable {
     /////////////////
 
     /// Checkpoint 5 ///
+    modifier predictionNotReported() {
+        if(s_isReported) {
+            revert PredictionMarket__PredictionAlreadyReported();
+        }
+        _;
+    }
 
     /// Checkpoint 6 ///
-
+    modifier predictionReported() {
+        if(!s_isReported) {
+            revert PredictionMarket__PredictionNotReported(); 
+        }
+        _;
+    }
     /// Checkpoint 8 ///
 
     //////////////////
@@ -124,7 +134,9 @@ contract PredictionMarket is Ownable {
         s_ethCollateral = msg.value;
 
         /// Checkpoint 3 ////
-        
+        s_yesBalances[_liquidityProvider] = msg.value;
+        s_noBalances[_liquidityProvider] = msg.value;
+
         // 1. Tính toán tổng số token cần in dựa trên số ETH nạp vào
         // Phép nhân PRECISION (1e18) để xử lý số thập phân
         uint256 initialTokenAmount = (msg.value * PRECISION) / _initialTokenValue;
@@ -147,6 +159,7 @@ contract PredictionMarket is Ownable {
         if (!success1 || !success2) {
             revert PredictionMarket__TokenTransferFailed();
         }
+        
 
 
     }
@@ -159,9 +172,20 @@ contract PredictionMarket is Ownable {
      * @notice Add liquidity to the prediction market and mint tokens
      * @dev Only the owner can add liquidity and only if the prediction is not reported
      */
-    function addLiquidity() external payable onlyOwner {
-        //// Dành cho LP ////
+    function addLiquidity() external payable onlyOwner predictionNotReported {
         //// Checkpoint 4 ////
+
+        // Add liquidity
+        s_ethCollateral += msg.value;
+
+        // Calculate the amount of token needed to mint corresponding to the amount of ETH added
+        uint256 tokensAmount = (msg.value * PRECISION) / i_initialTokenValue;
+
+        // Mint token Yes and No into main address of this Contract
+        i_yesToken.mint(address(this), tokensAmount);
+        i_noToken.mint(address(this), tokensAmount);
+
+        emit LiquidityAdded(msg.sender, msg.value, tokensAmount);
     }
 
     /**
@@ -169,8 +193,36 @@ contract PredictionMarket is Ownable {
      * @dev Only the owner can remove liquidity and only if the prediction is not reported
      * @param _ethToWithdraw Amount of ETH to withdraw from liquidity pool
      */
-    function removeLiquidity(uint256 _ethToWithdraw) external onlyOwner {
+    function removeLiquidity(uint256 _ethToWithdraw) external onlyOwner predictionNotReported {
         //// Checkpoint 4 ////
+
+        // Calculate the amount of token needed to remove corresponding to the amount of ETH withdrawed
+        uint256 amountTokenToBurn = (_ethToWithdraw / i_initialTokenValue) * PRECISION;
+
+        // Check if contract has enough token YES to burn
+        if (amountTokenToBurn > (i_yesToken.balanceOf(address(this)))) {
+            revert PredictionMarket__InsufficientTokenReserve(Outcome.YES, amountTokenToBurn);
+        }
+
+        // Check if contract has enough token NO to burn
+        if (amountTokenToBurn > (i_noToken.balanceOf(address(this)))) {
+            revert PredictionMarket__InsufficientTokenReserve(Outcome.NO, amountTokenToBurn);
+        }
+
+        // Remove liquidity
+        s_ethCollateral -= _ethToWithdraw;
+
+        // Burn token Yes and No
+        i_yesToken.burn(address(this), amountTokenToBurn);
+        i_noToken.burn(address(this), amountTokenToBurn);
+
+        // Send returned ETH to Owner
+        (bool success, ) = msg.sender.call{value: _ethToWithdraw}("");
+        if (!success) {
+            revert PredictionMarket__ETHTransferFailed();
+        }
+
+        emit LiquidityRemoved(msg.sender, _ethToWithdraw, amountTokenToBurn);
     }
 
     /**
@@ -178,8 +230,25 @@ contract PredictionMarket is Ownable {
      * @dev Only the oracle can report the winning outcome and only if the prediction is not reported
      * @param _winningOutcome The winning outcome (YES or NO)
      */
-    function report(Outcome _winningOutcome) external {
+    function report(Outcome _winningOutcome) external predictionNotReported {
         //// Checkpoint 5 ////
+
+        // Only Oracle can call this function
+        if(msg.sender != i_oracle) {
+            revert PredictionMarket__OnlyOracleCanReport();
+        }
+
+        // Mark as reported
+        s_isReported = true;
+
+        // Set winning 
+        if(_winningOutcome == Outcome.YES) {
+            s_winningToken = i_yesToken;
+        } else {
+            s_winningToken = i_noToken;
+        }
+
+        emit MarketReported(i_oracle, _winningOutcome, address(s_winningToken));
     }
 
     /**
@@ -187,8 +256,37 @@ contract PredictionMarket is Ownable {
      * @dev Only callable by the owner and only if the prediction is resolved
      * @return ethRedeemed The amount of ETH redeemed
      */
-    function resolveMarketAndWithdraw() external onlyOwner returns (uint256 ethRedeemed) {
+    function resolveMarketAndWithdraw() external onlyOwner predictionReported returns (uint256 ethRedeemed) {
         /// Checkpoint 6 ////
+
+        // Get the amount of wining tokens of Owner
+        uint256 balance = s_winningToken.balanceOf(address(this));
+
+        // Burn
+        s_winningToken.burn(address(this), balance);
+
+        // Calculate ETH
+        uint256 payout = (balance * i_initialTokenValue) / PRECISION;
+        
+        // Remove liquidity
+        s_ethCollateral -= payout;
+
+        // Add trading revenue
+        payout += s_lpTradingRevenue;
+
+        // Reset trading revenue
+        s_lpTradingRevenue = 0;
+
+        // Tranfer ETH to Owner
+        (bool success, ) = msg.sender.call{value: payout}("");
+        if (!success) {
+            revert PredictionMarket__ETHTransferFailed();
+        }
+
+        // Emit MarketResolved event
+        emit MarketResolved(msg.sender, payout);
+
+        return payout;
     }
 
     /**
