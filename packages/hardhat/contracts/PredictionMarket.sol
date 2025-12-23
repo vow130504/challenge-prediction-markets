@@ -93,6 +93,19 @@ contract PredictionMarket is Ownable {
         _;
     }
     /// Checkpoint 8 ///
+    modifier notOwner() {
+        if (msg.sender == owner()) {
+            revert PredictionMarket__OwnerCannotCall();
+        }
+        _;
+    }
+
+    modifier amountGreaterThanZero(uint256 _amount) {
+        if (_amount == 0) {
+            revert PredictionMarket__AmountMustBeGreaterThanZero();
+        }
+        _;
+    }
 
     //////////////////
     ////Constructor///
@@ -238,15 +251,15 @@ contract PredictionMarket is Ownable {
             revert PredictionMarket__OnlyOracleCanReport();
         }
 
-        // Mark as reported
-        s_isReported = true;
-
         // Set winning 
         if(_winningOutcome == Outcome.YES) {
             s_winningToken = i_yesToken;
         } else {
             s_winningToken = i_noToken;
         }
+
+        // Mark as reported
+        s_isReported = true;
 
         emit MarketReported(i_oracle, _winningOutcome, address(s_winningToken));
     }
@@ -269,6 +282,9 @@ contract PredictionMarket is Ownable {
         uint256 payout = (balance * i_initialTokenValue) / PRECISION;
         
         // Remove liquidity
+        if (payout > s_ethCollateral) {
+            payout = s_ethCollateral;
+        }
         s_ethCollateral -= payout;
 
         // Add trading revenue
@@ -294,19 +310,78 @@ contract PredictionMarket is Ownable {
      * @param _outcome The possible outcome (YES or NO) to buy tokens for
      * @param _amountTokenToBuy Amount of tokens to purchase
      */
-    function buyTokensWithETH(Outcome _outcome, uint256 _amountTokenToBuy) external payable {
-        /// Dành cho User ////
+    function buyTokensWithETH(Outcome _outcome, uint256 _amountTokenToBuy) 
+        external
+        payable
+        amountGreaterThanZero(_amountTokenToBuy)
+        predictionNotReported
+        notOwner
+    {
         /// Checkpoint 8 ////
+        uint256 ethNeeded = getBuyPriceInEth(_outcome, _amountTokenToBuy);
+        if (msg.value != ethNeeded) {
+            revert PredictionMarket__MustSendExactETHAmount();
+        }
+
+        PredictionMarketToken optionToken = _outcome == Outcome.YES ? i_yesToken : i_noToken;
+
+        if (_amountTokenToBuy > optionToken.balanceOf(address(this))) {
+            revert PredictionMarket__InsufficientTokenReserve(_outcome, _amountTokenToBuy);
+        }
+
+        s_lpTradingRevenue += msg.value;
+
+        bool success = optionToken.transfer(msg.sender, _amountTokenToBuy);
+        if (!success) {
+            revert PredictionMarket__TokenTransferFailed();
+        }
+
+        emit TokensPurchased(msg.sender, _outcome, _amountTokenToBuy, msg.value);
     }
+
 
     /**
      * @notice Sell prediction outcome tokens for ETH, need to call priceInETH function first to get right amount of tokens to buy
      * @param _outcome The possible outcome (YES or NO) to sell tokens for
      * @param _tradingAmount The amount of tokens to sell
      */
-    function sellTokensForEth(Outcome _outcome, uint256 _tradingAmount) external {
-        /// Dành cho User ////
+     function sellTokensForEth(Outcome _outcome, uint256 _tradingAmount)
+        external
+        amountGreaterThanZero(_tradingAmount)
+        predictionNotReported
+        notOwner
+    {
         /// Checkpoint 8 ////
+        PredictionMarketToken optionToken = _outcome == Outcome.YES ? i_yesToken : i_noToken;
+        uint256 userBalance = optionToken.balanceOf(msg.sender);
+        if (userBalance < _tradingAmount) {
+            revert PredictionMarket__InsufficientBalance(_tradingAmount, userBalance);
+        }
+
+        uint256 allowance = optionToken.allowance(msg.sender, address(this));
+        if (allowance < _tradingAmount) {
+            revert PredictionMarket__InsufficientAllowance(_tradingAmount, allowance);
+        }
+
+        uint256 ethToReceive = getSellPriceInEth(_outcome, _tradingAmount);
+
+        if (ethToReceive > s_lpTradingRevenue) {
+            revert PredictionMarket__InsufficientLiquidity();
+        }
+
+        s_lpTradingRevenue -= ethToReceive;
+
+        bool successTransfer = optionToken.transferFrom(msg.sender, address(this), _tradingAmount);
+        if (!successTransfer) {
+            revert PredictionMarket__TokenTransferFailed();
+        }
+
+        (bool success, ) = msg.sender.call{value: ethToReceive}("");
+        if (!success) {
+            revert PredictionMarket__ETHTransferFailed();
+        }
+
+        emit TokensSold(msg.sender, _outcome, _tradingAmount, ethToReceive);
     }
 
     /**
@@ -326,6 +401,7 @@ contract PredictionMarket is Ownable {
      */
     function getBuyPriceInEth(Outcome _outcome, uint256 _tradingAmount) public view returns (uint256) {
         /// Checkpoint 7 ////
+        return _calculatePriceInEth(_outcome, _tradingAmount, false);
     }
 
     /**
@@ -336,6 +412,7 @@ contract PredictionMarket is Ownable {
      */
     function getSellPriceInEth(Outcome _outcome, uint256 _tradingAmount) public view returns (uint256) {
         /// Checkpoint 7 ////
+        return _calculatePriceInEth(_outcome, _tradingAmount, true);
     }
 
     /////////////////////////
@@ -354,6 +431,37 @@ contract PredictionMarket is Ownable {
         bool _isSelling
     ) private view returns (uint256) {
         /// Checkpoint 7 ////
+        (uint256 currentTokenReserve, uint256 currentOtherTokenReserve) = _getCurrentReserves(_outcome);
+
+        /// Ensure sufficient liquidity when buying
+        if (!_isSelling) {
+            if (currentTokenReserve < _tradingAmount) {
+                revert PredictionMarket__InsufficientLiquidity();
+            }
+        }
+
+        uint256 totalTokenSupply = i_yesToken.totalSupply();
+
+        /// Before trade
+        uint256 currentTokenSoldBefore = totalTokenSupply - currentTokenReserve;
+        uint256 currentOtherTokenSold = totalTokenSupply - currentOtherTokenReserve;
+
+        uint256 totalTokensSoldBefore = currentTokenSoldBefore + currentOtherTokenSold;
+        uint256 probabilityBefore = _calculateProbability(currentTokenSoldBefore, totalTokensSoldBefore);
+
+        /// After trade
+        uint256 currentTokenReserveAfter =
+            _isSelling ? currentTokenReserve + _tradingAmount : currentTokenReserve - _tradingAmount;
+        uint256 currentTokenSoldAfter = totalTokenSupply - currentTokenReserveAfter;
+
+        uint256 totalTokensSoldAfter =
+            _isSelling ? totalTokensSoldBefore - _tradingAmount : totalTokensSoldBefore + _tradingAmount;
+
+        uint256 probabilityAfter = _calculateProbability(currentTokenSoldAfter, totalTokensSoldAfter);
+
+        /// Compute final price
+        uint256 probabilityAvg = (probabilityBefore + probabilityAfter) / 2;
+        return (i_initialTokenValue * probabilityAvg * _tradingAmount) / (PRECISION * PRECISION);
     }
 
     /**
@@ -363,6 +471,11 @@ contract PredictionMarket is Ownable {
      */
     function _getCurrentReserves(Outcome _outcome) private view returns (uint256, uint256) {
         /// Checkpoint 7 ////
+         if (_outcome == Outcome.YES) {
+            return (i_yesToken.balanceOf(address(this)), i_noToken.balanceOf(address(this)));
+        } else {
+            return (i_noToken.balanceOf(address(this)), i_yesToken.balanceOf(address(this)));
+        }
     }
 
     /**
@@ -373,6 +486,7 @@ contract PredictionMarket is Ownable {
      */
     function _calculateProbability(uint256 tokensSold, uint256 totalSold) private pure returns (uint256) {
         /// Checkpoint 7 ////
+        return (tokensSold * PRECISION) / totalSold;
     }
 
     /////////////////////////
@@ -420,7 +534,7 @@ contract PredictionMarket is Ownable {
         yesTokenReserve = i_yesToken.balanceOf(address(this));
         noTokenReserve = i_noToken.balanceOf(address(this));
         /// Checkpoint 5 ////
-        // isReported = s_isReported;
-        // winningToken = address(s_winningToken);
+        isReported = s_isReported;
+        winningToken = address(s_winningToken);
     }
 }
