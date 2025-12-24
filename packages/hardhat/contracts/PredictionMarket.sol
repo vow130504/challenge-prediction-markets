@@ -391,6 +391,32 @@ contract PredictionMarket is Ownable {
      */
     function redeemWinningTokens(uint256 _amount) external {
         /// Checkpoint 9 ////
+        if (msg.sender == owner()) {
+            revert PredictionMarket__OwnerCannotCall();
+        }
+        if (!s_isReported) {
+            revert PredictionMarket__PredictionNotReported();
+        }
+        if (_amount == 0) {
+            revert PredictionMarket__AmountMustBeGreaterThanZero();
+        }
+
+        uint256 balance = s_winningToken.balanceOf(msg.sender);
+        if (balance < _amount) {
+            revert PredictionMarket__InsufficientWinningTokens();
+        }
+
+        s_winningToken.burn(msg.sender, _amount);
+
+        uint256 ethAmount = (_amount * i_initialTokenValue) / PRECISION;
+        s_ethCollateral -= ethAmount;
+
+        (bool ok, ) = msg.sender.call{value: ethAmount}("");
+        if (!ok) {
+            revert PredictionMarket__ETHTransferFailed();
+        }
+
+        emit WinningTokensRedeemed(msg.sender, _amount, ethAmount);
     }
 
     /**
