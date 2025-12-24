@@ -16,6 +16,9 @@
 # production
 /build
 
+# auto-generated contracts map
+/contracts/deployedContracts.ts
+
 # misc
 .DS_Store
 *.pem

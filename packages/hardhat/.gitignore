@@ -28,3 +28,6 @@ deployments/localhost
 
 # other
 temp
+
+# Hardhat deploy outputs (auto-generated)
+deployments
